@@ -12,10 +12,10 @@ from recaptcha.client import captcha #TODO: make an eventbased library
 import random
 
 
-recaptcha_public_key = "<insert public key>"
-recaptcha_private_key = "<insert private key>"
+recaptcha_public_key = "<insert public-key>"
+recaptcha_private_key = "<insert private-key>"
 
-
+#cool
 def sha1(x):
     return hexlify(sha.sha(x).digest())
     
