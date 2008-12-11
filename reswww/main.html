@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+    "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.w3.org/MarkUp/SCHEMA/xhtml11.xsd"
+     xml:lang="en" >
+<head>
+<title>Game lobby</title>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<meta http-equiv="Pragma" content="no-cache" />
+<style type="text/css">
+body,td {
+    font-size: 10pt;
+}
+#rooms {
+border-collapse: collapse;
+}
+#rooms tr {
+background-color: #33CCFF;
+}
+
+#rooms td {
+border-bottom: 1px solid #000;
+padding-left: 10px;
+text-align: center;
+}
+#rooms th:first-child {
+    width: 180px;
+}
+</style>
+<script type="text/javascript" src="/jquery.js"></script>
+<script type="text/javascript" src="/json2.js"></script>
+<script type="text/javascript" src="/jquery.scrollTo.js"></script>
+<script type="text/javascript" src="/ui.js"></script>
+<script type="text/javascript" src="/ggnore.js"></script>
+<script type="text/javascript">
+//<![CDATA[
+function append_room(name, desc) {
+    tr = $("<tr id='room_"+desc.id+"'><td class='roomname'><a href='"+desc.staticurl+"'><b>"+escapeHTML(name)+"</b></a></td><td class='roomowner'>"+desc.owner+"</td><td></td></tr>");
+    $("a",tr).click(function(){
+        sessionStorage.riskurl = desc.roomurl;
+        return true;
+    });
+    $("#rooms").append(tr);
+    try {
+        if (sessionStorage.username == desc.owner) {
+            $("#room_"+desc.id+" td:nth-child(3)").append($("<button>Delete</button>").click(function(){
+                    //delete button
+                    $.post("/res/lobby", JSON.stringify({request: 'delroom', name: name}), function(data2,status){
+                        if (status != "success") {
+                            alert("Not deleted");
+                        }
+                    }, 'json');
+               }));
+        }
+    } catch (err) {}
+}
+         
+$(function(){
+    //get rooms
+    $.post("/res/lobby", JSON.stringify({request: 'getrooms'}), function(data,status){
+        if (status == "success" && data.status == "ok") {
+            $("#loading").remove();
+            $.each(data.rooms, function(key, desc){
+                append_room(key, desc);
+            });
+        }
+    }, "json");
+    
+    $("#createform").submit(function(){
+        sendJSON("/res/lobby", {request: 'makeroom', 'name': this.roomname.value, 'roomtype': this.gametype.value}, function(data, status){
+            if (status == "success" && data.status == "ok") {
+            } else {
+                alert("Error: "+(data.reason ? data.reason : "Unknown"))
+            }
+        });
+        return false;
+    });
+    
+    
+    
+    
+    makeRelay("/res/lobby/relay", ['delroom', 'newroom'] ,function(url){
+        longpoll(url,function(data, status) {
+            if (data.status != "ok")
+                return false;
+            if (data.event == "delroom")
+                $("#room_"+data.desc.id).remove();
+            else if (data.event == "newroom")
+                append_room(data.name, data.desc);
+        });
+    });
+    
+    
+    //userlist
+    userlist("/res/usertracker", function(){
+        $("#userlist").append(this);
+    });
+    chatwidget("/res/lobby/chat",function(){
+        $("#chat").append(this);
+    });
+    $("#logout button").click(function(){
+        $.get("/logout", "", function(){
+            window.location = "/";
+        }, "text");
+    });
+    
+});
+// ]]>
+</script>
+</head>
+<body>
+<h3>Lobby</h3>
+
+<div style='float: left; display:block; margin-right: 30px;'>
+    <table id="rooms">
+    <tr><th>Name</th><th>Owner</th><th> </th></tr>
+    </table>
+
+    <div id="loading"><i>Loading...</i></div>
+    <br />
+    <form id="createform" action="" method="get">
+    <p>
+    Create room: <input type="text" name="roomname" /><select name='gametype'><!-- <option value='tictactoe'>Tic-Tac-Toe</option> --><option value='risk'>Risk</option></select>
+    <input type="submit" value="Submit" /></p>
+    </form>
+</div>
+<div style="float:left;">
+    <div id="chat" style="width: 300px;height:300px;float:left;"></div>
+    <div id="userlist" style="float:left">
+    </div>
+</div>
+<div id="logout" style='position: fixed; bottom:0px; left:0px;'>
+<button><b>Logout</b></button>
+</div>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+    "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.w3.org/MarkUp/SCHEMA/xhtml11.xsd"
+     xml:lang="en" >
+<head>
+<script type="text/javascript" src="/jquery.js"></script>
+<script type="text/javascript" src="/json2.js"></script>
+<script type="text/javascript" 
+ src="http://api.recaptcha.net/js/recaptcha_ajax.js"></script>
+<script type="text/javascript">
+//<![CDATA[
+$(function(){
+    $("#createform input:first").focus();
+    $.get("/create/publickey", "", function(public_key,status){
+        Recaptcha.create(public_key, "recaptcha_div", {theme: "red"});
+    }, "text");
+    
+    $("#createform").submit(function(){
+        $.post("/create", JSON.stringify({'username': $("input[name=username]")[0].value, 'password': $("input[name=password]")[0].value, 'verify':$("input[name=verify]")[0].value, 'email': $("input[name=email]")[0].value, recaptcha_challenge_field: $("#recaptcha_challenge_field")[0].value,recaptcha_response_field: $("#recaptcha_response_field")[0].value}), function(data, s){
+            if (s == "success") {
+                if (data['status'] == 'ok') {
+                    $("#success").show();
+                    window.location = "/res/s/main.html"
+                } else if (data['status'] == 'error') {
+                    alert("Error: " + data['reason']);
+                    if (data.reason == "Invalid captcha") {
+                        Recaptcha.reload();
+                    }
+                }
+            } else {
+                alert("Error: " + s);
+            }
+        },"json");
+        return false;
+    });
+});
+// ]]>
+</script>
+<title>Create account:</title>
+</head>
+<body>
+<form id="createform" method="post" action="catwoman">
+<fieldset>
+<legend><b>Create account</b></legend>
+<p>
+Username: <input name="username" type="text" />
+</p>
+<p>
+Email:  <input type="text" name="email" />
+</p>
+<p>
+Password: <input name="password" type="password" />
+</p>
+<p>
+Password again: <input type="password" name="verify" />
+</p>
+<div id="recaptcha_div"></div>
+<div>
+<input type="submit" value="Submit" />
+</div>
+</fieldset>
+</form>
+<h3 id="success" style='color:green; display:none'>Create Succesful</h3>
+</body>
+</html>
+

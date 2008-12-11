@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+    "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.w3.org/MarkUp/SCHEMA/xhtml11.xsd"
+     xml:lang="en" >
+<head>
+<title>A good game of Risk</title>
+<script type="text/javascript" src="/jquery.js"></script>
+<script type="text/javascript" src="/jquery.scrollTo.js"></script>
+<script type="text/javascript" src="/json2.js"></script>
+<script type="text/javascript" src="/ggnore.js"></script>
+<script type="text/javascript">
+//<![CDATA[
+
+var gameurl = String(sessionStorage.riskurl);
+
+
+function admin_interface(data) {
+    adminbar = $("<div style='position:fixed; bottom:0px; left: 5em;'><b>I 'r t3h admin</b></div>"); //TODO: make proper interface
+    $(document.body).append(adminbar);
+}
+
+
+function initialize(data) {
+    //setup relay
+    ///...
+    if (data.genericstate.is_admin == 'true')
+        admin_interface(data);
+    
+    //setup chat
+    chatwidget(gameurl+"/priv/chat", function(){ $("#chat").append(this); });
+}
+
+
+
+$(function(){
+    $("#leavebutton").click(function(){
+        sendJSON(gameurl, {request: 'leave'}, function(data,status){
+            if (data.status == "ok") {
+                window.location = "/res/s/main.html";
+            }
+        });
+    });
+    $("#sv-gee").load(function(){    //startup phase
+        if (!gameurl)
+            return false;
+        window.riskmap = $("#sv-gee")[0].contentDocument.documentElement;
+        userlist(gameurl+"/users",function(){ $("#userlist").append(this); });
+        sendJSON(gameurl, {request: 'getstate'}, function(data,status){
+            var cache = data;
+            if (data.genericstate.logged_in == 'true') {
+                initialize(data);
+            } else {
+                if (confirm("Do you want to join this room?")) { //TODO: make proper UI functions
+                    //login
+                    sendJSON(gameurl, {request: 'join'}, function(data,status){
+                        if (data.status != "ok"){
+                            alert("Error when joining: "+data.reason);
+                        } else {
+                            initialize(cache);
+                        }
+                    });
+                
+
+                } else {
+                    alert("Too bad");
+                }
+            }
+            //$("#layer4 path",riskmap).select_country(function(){ alert(this.id);  });
+        });
+        
+        
+    });
+});
+
+
+jQuery.fn.select_country = function (callback) {   //To select a country ^^
+      var cache = this;
+      this.each(function(){
+        this.style.setProperty("fill", "#ffffff",null);
+        this.style.setProperty("fill-opacity", 0.0,null);
+        
+      }).mouseover(function(){
+        this.style.setProperty("fill", "#ffffff", null);
+        this.style.setProperty("fill-opacity", "0.3", null);
+        
+       }).mouseout(function(){
+        this.style.setProperty("fill", "#ffffff",null);
+        this.style.setProperty("fill-opacity", 0.0,null);
+        
+       }).click(function(){
+        cache.unbind('mouseover');
+        cache.unbind('mouseout');
+       	cache.unbind('click');
+        this.style.setProperty("fill", "#ffffff",null);
+        this.style.setProperty("fill-opacity", 0.0,null);
+        
+        callback.call(this);
+       });
+}
+
+//]]>
+</script>
+</head>
+<body>
+<div>
+<object id="sv-gee" type="image/svg+xml" data="worldmapsimple.svg" style="width: 800px; height: 600px;"></object>
+</div>
+<div id="userlist" style="position:absolute; right:0px; top: 40px;"></div>
+<div id="chat" style="position:fixed; right:0px; bottom: 0px; height: 200px; width: 200px;"></div>
+<button id='leavebutton' style="font-weight: bold; position:fixed; bottom:0px; left:0px;">Leave</button>
+</body>
+</html>
+
