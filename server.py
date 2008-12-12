@@ -535,12 +535,23 @@ class UserRestricter(resource.Resource):
         return json_error("Nothing to see here. Move along.")
         
 
+
+
+
+
+class RiskState():
+    def __init__(self):
+        self.mode = 'not_begun'
+        self.usercards = {}
+        self.contintents = {
+                            
+                            }
 class RiskMonster(EventMonster):
     def __init__(self):
         EventMonster.__init__(self)
         self.setEvents(['gameevents'])
-        self.genericstate = {}
-        self.genericstate['mode'] = 'not_begun'
+        self.state = {}
+        self.state = RiskState()
         self.minplayers = 2
         self.maxplayers = 6
         self.users = UserMonster()
@@ -567,7 +578,7 @@ class RiskMonster(EventMonster):
     def getPlayers(self): #returns a list of strings
         return self.users.getUsers()
     def join(self, session):
-        if not self.mode == "not_begun":
+        if not self.state.mode == "not_begun":
             raise Exception("You can't join a game that's already started!")
         if session.username in self.getPlayers():
             raise Exception("Already joined")
@@ -583,7 +594,7 @@ class RiskMonster(EventMonster):
         if len(self.getPlayers()) > 0:
             self.setAdmin(random.choice(self.getPlayers()))
     def getStateForUser(self,username):
-            state=self.genericstate
+            state=self.state
 
         
             
@@ -603,12 +614,13 @@ class RiskResource(JSONPage):
         r = j['request']
         if r == 'checkstatus':
             answer = {'status': 'ok'}
-            answer['logged_in'] = 'true' if username in self.getPlayers() else 'false'
-            return answer
+            answer['logged_in'] = 'true' if session.username in self.monster.getPlayers() else 'false'
+            return js.dumps(answer)
         if r == 'getstate':
+            print self.monster.getPlayers()
             if session.username in self.monster.getPlayers():
                 state = self.monster.getStateForUser(session.username)
-                return js.dumps({'status': 'ok', 'state': 'ok'})
+                return js.dumps({'status': 'ok', 'state': state})
             return json_error("You are not a participant in this room!")
         elif r == 'join':
             try:

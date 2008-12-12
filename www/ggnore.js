@@ -2,7 +2,6 @@ function escapeHTML (str) {    var div = document.createElement('div');
     var text = document.createTextNode(str);
     div.appendChild(text);
     return div.innerHTML;}
-
 function longpoll(url,callback) {
     $.get(url, null, function(data, status){if (callback(data,status) != false) { longpoll(url,callback)}}, "json");
 }

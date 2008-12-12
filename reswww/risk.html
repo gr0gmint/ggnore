@@ -16,21 +16,48 @@
 
 var gameurl = String(sessionStorage.riskurl);
 
+function selectcountryloop() {
+    $("#layer4 path", riskmap).select_country(function(){
+        alert(this.id);
+        selectcountryloop();
+    });
+}
 
+function getState(callback) {
+    sendJSON(gameurl, {request: 'getstate'}, function(data,status){
+        if (data.status == 'ok') {
+            callback(data);
+        } else {
+            alert("Error getting state: "+data.reason);
+        }
+    });
+}
 function admin_interface(data) {
     adminbar = $("<div style='position:fixed; bottom:0px; left: 5em;'><b>I 'r t3h admin</b></div>"); //TODO: make proper interface
     $(document.body).append(adminbar);
 }
 
+function check_login(callback) {
+    sendJSON(gameurl, {request: 'checkstatus'}, function(data, status){
+        alert(data.logged_in);
+        if (data.logged_in == 'true')
+            callback.call(true);
+        else
+            callback.call(false);
+    });
+}
 
-function initialize(data) {
-    //setup relay
-    ///...
-    if (data.state.is_admin == 'true')
-        admin_interface(data);
-    
-    //setup chat
-    chatwidget(gameurl+"/priv/chat", function(){ $("#chat").append(this); });
+function initialize() {
+    getState(function(data) {
+        //setup relay
+        ///...
+        if (data.state.is_admin == 'true')
+            admin_interface(data);
+        
+        //setup chat
+        chatwidget(gameurl+"/priv/chat", function(){ $("#chat").append(this); });
+        selectcountryloop();
+    });
 }
 
 
@@ -48,20 +75,15 @@ $(function(){
             return false;
         window.riskmap = $("#sv-gee")[0].contentDocument.documentElement;
         userlist(gameurl+"/users",function(){ $("#userlist").append(this); });
-        sendJSON(gameurl, {request: 'getstate'}, function(data,status){
-            var cache = data;
-            if (data.state.logged_in == 'true') {
-                initialize(data);
-            } else {
+        check_login(function(){
+            if (this == false) {
                 if (confirm("Do you want to join this room?")) { //TODO: make proper UI functions
                     //login
                     sendJSON(gameurl, {request: 'join'}, function(data,status){
                         if (data.status != "ok"){
                             alert("Error when joining: "+data.reason);
                         } else {
-                            sendJSON(gameurl, {request: 'getstate'}, function(data,status){
-                                initialize(data);
-                            });
+                            initialize();
                         }
                     });
                 
@@ -69,8 +91,8 @@ $(function(){
                 } else {
                     alert("Too bad");
                 }
-            }
-            //$("#layer4 path",riskmap).select_country(function(){ alert(this.id);  });
+            } else 
+                initialize();
         });
         
         
