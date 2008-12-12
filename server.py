@@ -539,7 +539,8 @@ class RiskMonster(EventMonster):
     def __init__(self):
         EventMonster.__init__(self)
         self.setEvents(['gameevents'])
-        self.mode = "not_begun"
+        self.genericstate = {}
+        self.genericstate['mode'] = 'not_begun'
         self.minplayers = 2
         self.maxplayers = 6
         self.users = UserMonster()
@@ -581,6 +582,9 @@ class RiskMonster(EventMonster):
     def _findNewAdmin(self):
         if len(self.getPlayers()) > 0:
             self.setAdmin(random.choice(self.getPlayers()))
+    def getStateForUser(self,username):
+            state=self.genericstate
+
         
             
         
@@ -597,12 +601,15 @@ class RiskResource(JSONPage):
     def render_JSON(self, request, j):
         session = request.getSession()
         r = j['request']
+        if r == 'checkstatus':
+            answer = {'status': 'ok'}
+            answer['logged_in'] = 'true' if username in self.getPlayers() else 'false'
+            return answer
         if r == 'getstate':
-            genericstate={}
-            genericstate['logged_in'] = 'true' if session.username in self.monster.getPlayers() else 'false'
-            genericstate['is_admin'] = 'true' if self.monster.admin == session.username else 'false'
-            
-            return js.dumps({'status': 'ok', 'state': self.monster.mode, 'genericstate': genericstate})
+            if session.username in self.monster.getPlayers():
+                state = self.monster.getStateForUser(session.username)
+                return js.dumps({'status': 'ok', 'state': 'ok'})
+            return json_error("You are not a participant in this room!")
         elif r == 'join':
             try:
                 self.monster.join(session)

@@ -26,7 +26,7 @@ function admin_interface(data) {
 function initialize(data) {
     //setup relay
     ///...
-    if (data.genericstate.is_admin == 'true')
+    if (data.state.is_admin == 'true')
         admin_interface(data);
     
     //setup chat
@@ -50,7 +50,7 @@ $(function(){
         userlist(gameurl+"/users",function(){ $("#userlist").append(this); });
         sendJSON(gameurl, {request: 'getstate'}, function(data,status){
             var cache = data;
-            if (data.genericstate.logged_in == 'true') {
+            if (data.state.logged_in == 'true') {
                 initialize(data);
             } else {
                 if (confirm("Do you want to join this room?")) { //TODO: make proper UI functions
@@ -59,7 +59,9 @@ $(function(){
                         if (data.status != "ok"){
                             alert("Error when joining: "+data.reason);
                         } else {
-                            initialize(cache);
+                            sendJSON(gameurl, {request: 'getstate'}, function(data,status){
+                                initialize(data);
+                            });
                         }
                     });
                 

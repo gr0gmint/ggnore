@@ -49,6 +49,8 @@ function userlist(listurl,callback) {
         longpoll(url, function(data,status){
             if (data.status == "ok") {
                 if (data.event == 'userlogin') {
+                    if ($("li:contains('"+data.user+"')",ul).length > 0)
+                        return true;
                     ul.append("<li>"+escapeHTML(data.user)+"</li>");
                     return true;
                 } else if(data.event == 'userlogout') {
