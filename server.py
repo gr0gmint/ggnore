@@ -539,20 +539,56 @@ class UserRestricter(resource.Resource):
 
 
 
-class RiskState():
-    def __init__(self):
-        self.mode = 'not_begun'
-        self.usercards = {}
-        self.contintents = {
-                            
-                            }
+class RiskData(object):
+    #there must be some easier way, right?
+    countrymap = {"eastern_australia": ["western_australia", "new_guinea"],
+    "indonesia": ["new_guniea", "siam","western_australia"],
+    "new_guinea": ["indonesia", "eastern_australia", "western_australia"],
+    "alaska": ["alberta", "northwest_territory", "kamchatka"],
+    "ontario": ["quebec", "eastern_united_states", "alberta", "northwest_territory", "greenland", "western_united_states"],
+    "northwest_territory": ["greenland", "alaska", "alberta", "ontario"],
+    "venezuela": ["central_america", "peru", "brazil"],
+    "madagascar": ["south_africa", "east_africa"],
+    "north_africa": ["brazil", "egypt", "east_africa", "congo"],
+    "greenland": ["iceland", "northwest_territory", "ontario", "quebec"],
+    "iceland": ["great_britain", "scandinavia", "greenland"],
+    "great_britain": ["iceland", "scandinavia", "western_europe", "northern_europe"],
+    "scandinavia": ["ukraine", "northern_europe", "great_britain", "iceland"], #maybe not northern europe
+    "japan": ["kamchatka", "mongolia"],
+    "yakursk": ["kamchatka", "irkutsk", "siberia"],
+    "kamchatka": ["alaska", "yakursk", "irkutsk", "mongolia"],
+    "siberia": ["ural", "china", "mongolia", "irkutsk", "yakursk"],
+    "ural": ["ukraine", "siberia", "china", "afghanistan"],
+    "afghanistan": ["ukraine", "ural", "china","india", "middle_east"],
+    "middle_east": ["ukraine", "southern_europe", "egypt", "east_africa", "india", "afghanistan"],
+    "india": ["middle_east", "afghanistan", "china", "siam"],
+    "siam": ["india","china", "indonesia"],
+    "china": ["siam", "india", "afghanistan", "ural", "siberia", "mongolia"],
+    "mongolia": ["china", "siberia", "irkutsk", "kamchatka", "japan"],
+    "irkutsk": ["kamchatka", "mongolia", "siberia", "yakursk"],
+    "ukraine": [],
+    "southern_europe": [],
+    "western_europe": [],
+    "northern_europe": [],
+    "egypt": [],
+    "east_africa": [],
+    "congo": [],
+    "south_africa": [],
+    "brazil": [],
+    "argentina": [],
+    "eastern_united_states": [],
+    "western_united_states": [],
+    "quebec": [],
+    "central_america": [],
+    "peru": [],
+    "western_australia": [],
+    "alberta": []}
 class RiskMonster(EventMonster):
     def __init__(self):
         EventMonster.__init__(self)
         self.setEvents(['gameevents'])
-        self.state = {}
-        self.state = RiskState()
-        self.minplayers = 2
+        self.state = {'mode': 'not_begun'}
+        self.minplayers = 3
         self.maxplayers = 6
         self.users = UserMonster()
         self.admin = ''
@@ -578,7 +614,7 @@ class RiskMonster(EventMonster):
     def getPlayers(self): #returns a list of strings
         return self.users.getUsers()
     def join(self, session):
-        if not self.state.mode == "not_begun":
+        if not self.state['mode'] == "not_begun":
             raise Exception("You can't join a game that's already started!")
         if session.username in self.getPlayers():
             raise Exception("Already joined")
@@ -594,7 +630,11 @@ class RiskMonster(EventMonster):
         if len(self.getPlayers()) > 0:
             self.setAdmin(random.choice(self.getPlayers()))
     def getStateForUser(self,username):
-            state=self.state
+            state = self.state
+            state['is_admin'] = 'true' if username == self.admin else 'false'
+            return state
+    def startGame(self):
+        pass
 
         
             
@@ -617,7 +657,6 @@ class RiskResource(JSONPage):
             answer['logged_in'] = 'true' if session.username in self.monster.getPlayers() else 'false'
             return js.dumps(answer)
         if r == 'getstate':
-            print self.monster.getPlayers()
             if session.username in self.monster.getPlayers():
                 state = self.monster.getStateForUser(session.username)
                 return js.dumps({'status': 'ok', 'state': state})

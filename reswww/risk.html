@@ -39,7 +39,6 @@ function admin_interface(data) {
 
 function check_login(callback) {
     sendJSON(gameurl, {request: 'checkstatus'}, function(data, status){
-        alert(data.logged_in);
         if (data.logged_in == 'true')
             callback.call(true);
         else
@@ -109,7 +108,7 @@ jQuery.fn.select_country = function (callback) {   //To select a country ^^
       }).mouseover(function(){
         this.style.setProperty("fill", "#ffffff", null);
         this.style.setProperty("fill-opacity", "0.3", null);
-        
+        $("#countrylabel").html(this.id);
        }).mouseout(function(){
         this.style.setProperty("fill", "#ffffff",null);
         this.style.setProperty("fill-opacity", 0.0,null);
@@ -134,7 +133,10 @@ jQuery.fn.select_country = function (callback) {   //To select a country ^^
 </div>
 <div id="userlist" style="position:absolute; right:0px; top: 40px;"></div>
 <div id="chat" style="position:fixed; right:0px; bottom: 0px; height: 200px; width: 200px;"></div>
-<button id='leavebutton' style="font-weight: bold; position:fixed; bottom:0px; left:0px;">Leave</button>
+<div style="position:fixed; bottom:0px; left:0px;">
+<div id="countrylabel"></div><br />
+<button id='leavebutton' style="font-weight: bold;">Leave</button>
+</div>
 </body>
 </html>
 
