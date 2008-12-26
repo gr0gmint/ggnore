@@ -72,7 +72,10 @@ $(function(){
     $("#sv-gee").load(function(){    //startup phase
         if (!gameurl)
             return false;
+        //GLOBALS
+        window.countrylabel = $("#countrylabel");
         window.riskmap = $("#sv-gee")[0].contentDocument.documentElement;
+
         userlist(gameurl+"/users",function(){ $("#userlist").append(this); });
         check_login(function(){
             if (this == false) {
@@ -98,7 +101,6 @@ $(function(){
     });
 });
 
-
 jQuery.fn.select_country = function (callback) {   //To select a country ^^
       var cache = this;
       this.each(function(){
@@ -108,7 +110,7 @@ jQuery.fn.select_country = function (callback) {   //To select a country ^^
       }).mouseover(function(){
         this.style.setProperty("fill", "#ffffff", null);
         this.style.setProperty("fill-opacity", "0.3", null);
-        $("#countrylabel").html(this.id);
+        countrylabel.html(this.id);
        }).mouseout(function(){
         this.style.setProperty("fill", "#ffffff",null);
         this.style.setProperty("fill-opacity", 0.0,null);
@@ -129,12 +131,12 @@ jQuery.fn.select_country = function (callback) {   //To select a country ^^
 </head>
 <body>
 <div>
-<object id="sv-gee" type="image/svg+xml" data="worldmapsimple.svg" style="width: 800px; height: 600px;"></object>
+<object id="sv-gee" type="image/svg+xml" data="worldmapsimple.svg" style="width: 800px; height: 530px; border:1px solid red;"></object>
 </div>
 <div id="userlist" style="position:absolute; right:0px; top: 40px;"></div>
 <div id="chat" style="position:fixed; right:0px; bottom: 0px; height: 200px; width: 200px;"></div>
 <div style="position:fixed; bottom:0px; left:0px;">
-<div id="countrylabel"></div><br />
+<div id="countrylabel"></div>
 <button id='leavebutton' style="font-weight: bold;">Leave</button>
 </div>
 </body>
