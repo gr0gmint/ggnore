@@ -16,10 +16,18 @@
 
 var gameurl = String(sessionStorage.riskurl);
 
-function selectcountryloop() {
-    $("#layer4 path", riskmap).select_country(function(){
-        alert(this.id);
-        selectcountryloop();
+function testloop() {
+    allcountries.select_country(function(){
+        expression = "";
+        num = countrymap[this.id].length;
+        $.each(countrymap[this.id], function(i){
+            expression += "#"+this + ((i<num)?',':'');
+        });
+        bordercountries = $(expression, riskmap);
+        bordercountries.select_country(function(){
+            alert("You just attacked "+this.id);
+            testloop();
+        }, "#ff0000", 0.9);
     });
 }
 
@@ -37,16 +45,13 @@ function admin_interface(data) {
     $(document.body).append(adminbar);
 }
 
-function check_login(callback) {
-    sendJSON(gameurl, {request: 'checkstatus'}, function(data, status){
-        if (data.logged_in == 'true')
-            callback.call(true);
-        else
-            callback.call(false);
+function initialize_serverside(callback) {
+    sendJSON(gameurl, {request: 'init'}, function(data, status){
+        callback.call(data);
     });
 }
 
-function initialize() {
+function initialize_clientside() {
     getState(function(data) {
         //setup relay
         ///...
@@ -55,7 +60,7 @@ function initialize() {
         
         //setup chat
         chatwidget(gameurl+"/priv/chat", function(){ $("#chat").append(this); });
-        selectcountryloop();
+        testloop();
     });
 }
 
@@ -75,17 +80,18 @@ $(function(){
         //GLOBALS
         window.countrylabel = $("#countrylabel");
         window.riskmap = $("#sv-gee")[0].contentDocument.documentElement;
-
+        window.allcountries = $("#layer4 path",riskmap);
         userlist(gameurl+"/users",function(){ $("#userlist").append(this); });
-        check_login(function(){
-            if (this == false) {
+        initialize_serverside(function(){
+            window.countrymap = this.countrymap;
+            if (this.logged_in == 'false') {
                 if (confirm("Do you want to join this room?")) { //TODO: make proper UI functions
                     //login
                     sendJSON(gameurl, {request: 'join'}, function(data,status){
                         if (data.status != "ok"){
                             alert("Error when joining: "+data.reason);
                         } else {
-                            initialize();
+                            initialize_clientside();
                         }
                     });
                 
@@ -93,23 +99,39 @@ $(function(){
                 } else {
                     alert("Too bad");
                 }
-            } else 
-                initialize();
+            } else if (this.logged_in == 'true')
+                initialize_clientside();
         });
         
         
     });
 });
 
-jQuery.fn.select_country = function (callback) {   //To select a country ^^
+jQuery.fn.cancel_selection = function (callback) { //maybe not useful at all
+        this.unbind('mouseover');
+        this.unbind('mouseout');
+       	this.unbind('click');
+       	this.each(function(){
+            this.style.setProperty("fill", "#ffffff",null);
+            this.style.setProperty("fill-opacity", 0.0,null);
+        });
+}
+
+jQuery.fn.select_country = function (callback, color,opacity) {
+        if (!color)
+            color = "#ffffff";
+        if (!opacity)
+            opacity = "0.3";
       var cache = this;
       this.each(function(){
+        if (!this.style)
+            alert(this);
         this.style.setProperty("fill", "#ffffff",null);
         this.style.setProperty("fill-opacity", 0.0,null);
         
       }).mouseover(function(){
-        this.style.setProperty("fill", "#ffffff", null);
-        this.style.setProperty("fill-opacity", "0.3", null);
+        this.style.setProperty("fill", color, null);
+        this.style.setProperty("fill-opacity", opacity, null);
         countrylabel.html(this.id);
        }).mouseout(function(){
         this.style.setProperty("fill", "#ffffff",null);

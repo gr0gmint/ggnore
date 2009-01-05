@@ -652,9 +652,10 @@ class RiskResource(JSONPage):
     def render_JSON(self, request, j):
         session = request.getSession()
         r = j['request']
-        if r == 'checkstatus':
+        if r == 'init':
             answer = {'status': 'ok'}
             answer['logged_in'] = 'true' if session.username in self.monster.getPlayers() else 'false'
+            answer['countrymap'] = RiskData.countrymap
             return js.dumps(answer)
         if r == 'getstate':
             if session.username in self.monster.getPlayers():
