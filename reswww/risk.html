@@ -24,11 +24,69 @@ function testloop() {
             expression += "#"+this + ((i<num)?',':'');
         });
         bordercountries = $(expression, riskmap);
+        
+        bordercountries.setOrigColor("#0f0", 0.5);
+        bordercountries.setColor("#0f0", 0.5);
+        $(this).setMOverColor("#fff", 0.7);
         bordercountries.select_country(function(){
+            bordercountries.setAllColor();
+            $(this).setAllColor("#fff", 0.0);
+            $(this).setMOverColor("#fff", 0.7);
             alert("You just attacked "+this.id);
             testloop();
         }, "#ff0000", 0.9);
     });
+}
+
+jQuery.fn.setMOverColor = function (color,opacity) {
+    if (!color)
+        color = "#ffffff";
+    if (!opacity)
+        opacity = 0.0;
+    this.each(function(){
+        this.moverfill = color;
+        this.moveropacity = opacity;
+    });
+
+}
+jQuery.fn.setColor = function (color,opacity) {
+    if (!color)
+        color = "#ffffff";
+    if (!opacity)
+        opacity = 0.0;
+    this.each(function(){
+        this.style.setProperty("fill", color, null);
+        this.style.setProperty("fill-opacity", opacity, null);
+    });
+
+}
+
+jQuery.fn.setOrigColor = function (color,opacity) {
+    if (!color)
+        color = "#ffffff";
+    if (!opacity)
+        opacity = 0.0;
+    this.each(function(){
+        this.originalfill = color;
+        this.originalopacity = opacity;
+    });
+
+}
+
+jQuery.fn.setAllColor = function (color,opacity) {
+    if (!color)
+        color = "#ffffff";
+    if (!opacity)
+        opacity = 0.0;
+    this.each(function(){
+        this.moverfill = color;
+        this.moveropacity = opacity;
+        this.originalfill = color;
+        this.originalopacity = opacity;
+        this.style.setProperty("fill", color, null);
+        this.style.setProperty("fill-opacity", opacity, null);
+    });
+
 }
 
 function getState(callback) {
@@ -82,6 +140,12 @@ $(function(){
         window.riskmap = $("#sv-gee")[0].contentDocument.documentElement;
         window.allcountries = $("#layer4 path",riskmap);
         userlist(gameurl+"/users",function(){ $("#userlist").append(this); });
+        allcountries.each(function(){
+        $(this).setAllColor();
+        $(this).setMOverColor("#fff", 0.7);
+        
+        });
+        
         initialize_serverside(function(){
             window.countrymap = this.countrymap;
             if (this.logged_in == 'false') {
@@ -107,42 +171,23 @@ $(function(){
     });
 });
 
-jQuery.fn.cancel_selection = function (callback) { //maybe not useful at all
-        this.unbind('mouseover');
-        this.unbind('mouseout');
-       	this.unbind('click');
-       	this.each(function(){
-            this.style.setProperty("fill", "#ffffff",null);
-            this.style.setProperty("fill-opacity", 0.0,null);
-        });
-}
-
 jQuery.fn.select_country = function (callback, color,opacity) {
-        if (!color)
-            color = "#ffffff";
-        if (!opacity)
-            opacity = "0.3";
+      
       var cache = this;
-      this.each(function(){
-        if (!this.style)
-            alert(this);
-        this.style.setProperty("fill", "#ffffff",null);
-        this.style.setProperty("fill-opacity", 0.0,null);
-        
-      }).mouseover(function(){
-        this.style.setProperty("fill", color, null);
-        this.style.setProperty("fill-opacity", opacity, null);
+      this.mouseover(function(){
+        this.style.setProperty("fill", this.moverfill, null);
+        this.style.setProperty("fill-opacity", this.moveropacity, null);
         countrylabel.html(this.id);
        }).mouseout(function(){
-        this.style.setProperty("fill", "#ffffff",null);
-        this.style.setProperty("fill-opacity", 0.0,null);
+        this.style.setProperty("fill", this.originalfill,null);
+        this.style.setProperty("fill-opacity", this.originalopacity,null);
         
        }).click(function(){
         cache.unbind('mouseover');
         cache.unbind('mouseout');
        	cache.unbind('click');
-        this.style.setProperty("fill", "#ffffff",null);
-        this.style.setProperty("fill-opacity", 0.0,null);
+        this.style.setProperty("fill", this.originalfill,null);
+        this.style.setProperty("fill-opacity", this.originalopacity,null);
         
         callback.call(this);
        });

@@ -577,7 +577,7 @@ class RiskData(object):
     "brazil": ["venezuela", "peru", "argentina", "north_africa"],
     "argentina": ["peru", "brazil"],
     "eastern_united_states": ["central_america", "western_united_states", "ontario", "quebec"],
-    "western_united_states": ["alberta","ontario","eastern_europe", "central_america"],
+    "western_united_states": ["alberta","ontario","eastern_united_states", "central_america"],
     "quebec": ["greenland", "eastern_united_states", "ontario"],
     "central_america": ["venezuela", "western_united_states", "eastern_united_states"],
     "peru": ["venezuela", "brazil", "argentina"],
