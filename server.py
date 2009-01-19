@@ -4,13 +4,12 @@ from twisted.internet import reactor, defer
 from twisted.web import server, resource, static, script
 from twisted.enterprise import adbapi
 import simplejson as js
-from pysqlite2 import dbapi2 as sqlite  #we won't do many queries, so blocking is okay
+import sqlite3 as sqlite  #we won't do many queries, so blocking is okay
 import sha
 from binascii import hexlify
 import re
-from recaptcha.client import captcha #TODO: make an eventbased library
+import captcha #TODO: make an eventbased library
 import random
-
 
 recaptcha_public_key = "<insert public-key>"
 recaptcha_private_key = "<insert private-key>"
@@ -586,7 +585,7 @@ class RiskData(object):
 class RiskMonster(EventMonster):
     def __init__(self):
         EventMonster.__init__(self)
-        self.setEvents(['gameevents'])
+        self.setEvents(['gameevents', 'new_admin'])
         self.state = {'mode': 'not_begun'}
         self.minplayers = 3
         self.maxplayers = 6
@@ -625,7 +624,7 @@ class RiskMonster(EventMonster):
         self.users.userLogout(session)
     def setAdmin(self, admin):
         self.admin = admin
-        self.triggerEvent('gameevents', gameevent='new_admin', admin=self.admin)
+        self.triggerEvent('new_admin', admin=self.admin)
     def _findNewAdmin(self):
         if len(self.getPlayers()) > 0:
             self.setAdmin(random.choice(self.getPlayers()))
@@ -638,14 +637,30 @@ class RiskMonster(EventMonster):
 
         
             
-        
+class RiskAdminResource(JSONPage):
+    def __init__(self, monster):
+        self.admin = monster.admin
+        self.monster = monster
+        monster.subscribeEvent('new_admin',self._newAdminCallback)
+        JSONPage.__init__(self)
+    def _newAdminCallback(self, *args, **kw):
+        self.admin = kw['admin']
+    def render_JSON(self, request):
+        session = request.getSession()
+        if session.username != self.admin:
+            return json_error("You are not admin!")
+        r = j['request']
+        if r == 'start_game':
+            self.monster.startGame()
 class RiskResource(JSONPage):
     webinterface = "/res/s/risk.html"
+            
     def __init__(self, monster):
         JSONPage.__init__(self)
         self.monster = monster
         self.putChild("users", UsertrackerResource(self.monster.users))
         self.privatetree = UserRestricter(self.monster.users)
+        self.privatetree.putChild("admin", RiskAdminResource(self.monster))
         self.privatetree.putChild("relay", RiskRelayFactory(RiskRelay, self.monster))
         self.privatetree.putChild("chat", ChatResource(ChatMonster()))
         self.putChild("priv", self.privatetree)
@@ -672,7 +687,6 @@ class RiskResource(JSONPage):
         elif r == 'leave':
             self.monster.leave(session)
             return js.dumps({'status': 'ok'})
-            
         return json_error('Invalid arguments')
 
 class RiskRelayFactory(RelayFactory):
@@ -681,5 +695,5 @@ class RiskRelayFactory(RelayFactory):
 class RiskRelay(Relay):
     def callback(self,event, *args,**kw):
         pass
-
+print "Starting reactor"
 reactor.run()

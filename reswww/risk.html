@@ -24,67 +24,56 @@ function testloop() {
             expression += "#"+this + ((i<num)?',':'');
         });
         bordercountries = $(expression, riskmap);
-        
-        bordercountries.setOrigColor("#0f0", 0.5);
-        bordercountries.setColor("#0f0", 0.5);
-        $(this).setMOverColor("#fff", 0.7);
+        bordercountries.setColor("orig+now","#0f0", 0.9);
+        $(this).setColor("all","#fff", 0.7);
         bordercountries.select_country(function(){
-            bordercountries.setAllColor();
-            $(this).setAllColor("#fff", 0.0);
-            $(this).setMOverColor("#fff", 0.7);
+            allcountries.setColor("all");
+            allcountries.setColor("mover","#fff", 0.7);
             alert("You just attacked "+this.id);
             testloop();
-        }, "#ff0000", 0.9);
+        });
     });
 }
 
-jQuery.fn.setMOverColor = function (color,opacity) {
+jQuery.fn.setColor = function (what,color,opacity) {
     if (!color)
-        color = "#ffffff";
+        var color = "#ffffff";
     if (!opacity)
-        opacity = 0.0;
-    this.each(function(){
-        this.moverfill = color;
-        this.moveropacity = opacity;
-    });
-
-}
-jQuery.fn.setColor = function (color,opacity) {
-    if (!color)
-        color = "#ffffff";
-    if (!opacity)
-        opacity = 0.0;
-    this.each(function(){
-        this.style.setProperty("fill", color, null);
-        this.style.setProperty("fill-opacity", opacity, null);
-    });
-
-}
-
-jQuery.fn.setOrigColor = function (color,opacity) {
-    if (!color)
-        color = "#ffffff";
-    if (!opacity)
-        opacity = 0.0;
-    this.each(function(){
-        this.originalfill = color;
-        this.originalopacity = opacity;
-    });
-
-}
-
-jQuery.fn.setAllColor = function (color,opacity) {
-    if (!color)
-        color = "#ffffff";
-    if (!opacity)
-        opacity = 0.0;
-    this.each(function(){
-        this.moverfill = color;
-        this.moveropacity = opacity;
-        this.originalfill = color;
-        this.originalopacity = opacity;
-        this.style.setProperty("fill", color, null);
-        this.style.setProperty("fill-opacity", opacity, null);
+        var opacity = 0.0;
+    var cache = this;
+    var whatarray = what.split("+");
+    $.each(whatarray, function(){
+        switch(String(this)){
+	    case "mover":
+	        cache.each(function(){
+	            this.moverfill = color;
+	            this.moveropacity = opacity;
+		    });
+		    break;
+		case "orig":
+		    cache.each(function(){
+                this.originalfill = color;
+                this.originalopacity = opacity;
+		    });
+		    break;
+		case "now":
+		    cache.each(function(){
+		        this.style.setProperty("fill", color, null);
+		        this.style.setProperty("fill-opacity", opacity, null);
+		    });
+		    break;
+		case "all":
+		    cache.each(function(){
+		        this.moverfill = color;
+	            this.moveropacity = opacity;
+		        this.originalfill = color;
+                this.originalopacity = opacity;
+		        this.style.setProperty("fill", color, null);
+		        this.style.setProperty("fill-opacity", opacity, null);
+		    });
+		    break;
+	    }
+	return this;
     });
 
 }
@@ -140,11 +129,8 @@ $(function(){
         window.riskmap = $("#sv-gee")[0].contentDocument.documentElement;
         window.allcountries = $("#layer4 path",riskmap);
         userlist(gameurl+"/users",function(){ $("#userlist").append(this); });
-        allcountries.each(function(){
-        $(this).setAllColor();
-        $(this).setMOverColor("#fff", 0.7);
-        
-        });
+        allcountries.setColor("all", "#fff", 0.0);
+        allcountries.setColor("mover","#fff", 0.7);
         
         initialize_serverside(function(){
             window.countrymap = this.countrymap;
@@ -171,9 +157,9 @@ $(function(){
     });
 });
 
-jQuery.fn.select_country = function (callback, color,opacity) {
+jQuery.fn.select_country = function (callback) {
       
-      var cache = this;
+      cache = this;
       this.mouseover(function(){
         this.style.setProperty("fill", this.moverfill, null);
         this.style.setProperty("fill-opacity", this.moveropacity, null);
@@ -188,7 +174,6 @@ jQuery.fn.select_country = function (callback, color,opacity) {
        	cache.unbind('click');
         this.style.setProperty("fill", this.originalfill,null);
         this.style.setProperty("fill-opacity", this.originalopacity,null);
-        
         callback.call(this);
        });
 }
