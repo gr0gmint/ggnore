@@ -10,6 +10,11 @@ from binascii import hexlify
 import re
 import captcha #TODO: make an eventbased library
 import random
+import sys
+import os
+
+LISTEN_PORT = 8080
+path = os.path.dirname(__file__)
 
 recaptcha_public_key = "<insert public-key>"
 recaptcha_private_key = "<insert private-key>"
@@ -102,7 +107,7 @@ class JSONPage(resource.Resource):
 
 class LoginJSON(JSONPage):
     def __init__(self):
-        self.sqlcon = sqlite.connect('./user.db')
+        self.sqlcon = sqlite.connect(os.path.join(path,'user.db'))
         
     def render_JSON(self, request,j):
         session = request.getSession()
@@ -119,8 +124,8 @@ class LoginJSON(JSONPage):
                 session.logged_in = True
                 session.username = row[0]
                 session.email = row[2]
-                session.notifyOnExpire(lambda *args: loginmonster.userLogout(session))
-                loginmonster.userLogin(session)
+                session.notifyOnExpire(lambda *args: s.loginmonster.userLogout(session))
+                s.loginmonster.userLogin(session)
                 return js.dumps({'status': 'ok', 'username': session.username})
         return js.dumps({'status': 'error', 'reason': 'Wrong username and/or password'})
         
@@ -149,7 +154,7 @@ class UserMonster(EventMonster):
         EventMonster.__init__(self)
         self._users = {}
         self.setEvents(['userlogin', 'userlogout'])
-loginmonster = UserMonster()   
+  
         
 
 class CreateJSON(JSONPage):
@@ -291,7 +296,7 @@ class RelayFactory(JSONPage): #creates channel/relay instances for long-polling,
         if j['request'] == 'makerelay':
             relay = self.relayclass(j['events'], self.monster, tokens=self.getTokens(request,j))
             uid = sha1(str(id(relay)))
-            sessiontree.getChildWithDefault('ch',request).putChild(uid, relay)
+            s.sessiontree.getChildWithDefault('ch',request).putChild(uid, relay)
             return js.dumps({'status': 'ok', 'url':'/res/ses/ch/'+uid})
     def getTokens(self, request, j):
         return ['']
@@ -337,45 +342,6 @@ class Relay(resource.Resource): #long-poll resource. implements buffering of eve
     def callback(self,event, *args, **kw): #overload this (!!!!)
         pass
 
-root = static.File("./www")
-
-#create sqlite tables if not exist
-
-sqlcon = sqlite.connect("./user.db")
-cursor = sqlcon.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, user TEXT NOT NULL, password TEXT NOT NULL, email TEXT NOT NULL)")
-sqlcon.commit()
-sqlcon.close()
-
-
-
-restricted = RestrictedTree()
-restricted.putChild("s", static.File("./reswww"))
-restricted.putChild("user", UserTree())
-
-sessiontree = SessionTree()
-restricted.putChild("ses", sessiontree)
-gamestree = resource.Resource()
-restricted.putChild("games", gamestree)
-
-def _userlogin(_event, *_args, **kw):
-    print kw['session'].username
-    sessiontree.putChild('ch', SessionChild(), kw['session'])
-#make user/session specific things when he/she logs in
-loginmonster.subscribeEvent('userlogin', _userlogin)
-
-root.putChild('', RedirectResource('/loginform.html'))
-root.putChild("res", restricted)
-root.putChild("login", LoginJSON())
-root.putChild("create", CreateJSON())
-root.putChild("debug", DebugExplorer())
-root.putChild("logout", Logout())
-
-site = server.Site(root)
-reactor.listenTCP(8080, site) 
-
-
-
 class UserChannel(Relay):
     def callback(self, event, *args, **kw):
         if event == 'userlogin' or event == 'userlogout':
@@ -393,8 +359,6 @@ class UsertrackerResource(JSONPage):
             return js.dumps({'status': 'ok', 'users': self.monster.getUsers()})
             
         return json_error("What on earth are you trying to do?")
-usertracker = UsertrackerResource(loginmonster)
-restricted.putChild('usertracker', usertracker)
 
 
 
@@ -425,7 +389,7 @@ class LobbyMonster(EventMonster):
         pass
             
             
-lobby = LobbyMonster()
+
 
 
 class LobbyResource(JSONPage):
@@ -433,6 +397,9 @@ class LobbyResource(JSONPage):
         JSONPage.__init__(self)
         self.monster = monster
         self.putChild('relay', RelayFactory(LobbyChannel,monster))
+        self.gametypes = {}
+    def addGame(self, name, factory):
+        self.gametypes[name] = factory
     def render_JSON(self,request,j):
         session = request.getSession()
         
@@ -440,12 +407,11 @@ class LobbyResource(JSONPage):
         if j['request'] == 'getrooms':
             return js.dumps({'status': 'ok', 'rooms': self.monster.getRooms()})
             
-            
         elif j['request'] == 'makeroom' and len(j['name']) < 20:
-            if j['roomtype'] == 'risk':
-                gameobj = RiskResource(RiskMonster())
-                if lobby.newRoom(j['name'], owner=session.username,roomtype='risk', roomurl="/res/games/"+sha1(str(id(gameobj))), staticurl=RiskResource.webinterface):
-                    gamestree.putChild(sha1(str(id(gameobj))), gameobj)
+            if j['roomtype'] in self.gametypes.keys():
+                gameobj = self.gametypes[j['roomtype']]()
+                if self.monster.newRoom(j['name'], owner=session.username,roomtype=j['roomtype'], roomurl="/res/games/"+sha1(str(id(gameobj))), staticurl=gameobj.webinterface):
+                    s.gamestree.putChild(sha1(str(id(gameobj))), gameobj)
                     return js.dumps({'status': 'ok'})
                 else:
                     return json_error("Room already exists");
@@ -454,9 +420,9 @@ class LobbyResource(JSONPage):
 
 
         elif j['request'] == 'delroom':
-            if lobby.rooms[j['name']]['owner'] != session.username:
+            if self.monster.rooms[j['name']]['owner'] != session.username:
                 return js.dumps({'status': 'error', 'reason': 'You can\'t break those cuffs'})
-            if lobby.removeRoom(j['name']):
+            if self.monster.removeRoom(j['name']):
                 return js.dumps({'status': 'ok'})
             else:
                 return js.dumps({'status': 'error', 'reason': 'Room does not exist'})
@@ -503,15 +469,9 @@ class ChatResource(JSONPage):
         elif j['request'] == 'newmessage':
             self.monster.newMessage({'username':session.username, 'message': j['msg']})
             return js.dumps({'status': 'ok'})
-
-lobbyresource = LobbyResource(lobby)
-lobbychat = ChatMonster()
-lobbyresource.putChild('chat', ChatResource(lobbychat))
-
-
-
-restricted.putChild("lobby", lobbyresource)
-
+        
+        
+        
 
 class UserRestricter(resource.Resource):
     def __init__(self,usermonster):
@@ -533,167 +493,59 @@ class UserRestricter(resource.Resource):
     def render(self,request):
         return json_error("Nothing to see here. Move along.")
         
-
-
-
-
-
-class RiskData(object):
-    #there must be some easier way, right?
-    countrymap = {"eastern_australia": ["western_australia", "new_guinea"],
-    "indonesia": ["new_guniea", "siam","western_australia"],
-    "new_guinea": ["indonesia", "eastern_australia", "western_australia"],
-    "alaska": ["alberta", "northwest_territory", "kamchatka"],
-    "ontario": ["quebec", "eastern_united_states", "alberta", "northwest_territory", "greenland", "western_united_states"],
-    "northwest_territory": ["greenland", "alaska", "alberta", "ontario"],
-    "venezuela": ["central_america", "peru", "brazil"],
-    "madagascar": ["south_africa", "east_africa"],
-    "north_africa": ["brazil", "egypt", "east_africa", "congo", "western_europe", "southern_europe"],
-    "greenland": ["iceland", "northwest_territory", "ontario", "quebec"],
-    "iceland": ["great_britain", "scandinavia", "greenland"],
-    "great_britain": ["iceland", "scandinavia", "western_europe", "northern_europe"],
-    "scandinavia": ["ukraine", "northern_europe", "great_britain", "iceland"], #maybe not northern europe
-    "japan": ["kamchatka", "mongolia"],
-    "yakursk": ["kamchatka", "irkutsk", "siberia"],
-    "kamchatka": ["alaska", "yakursk", "irkutsk", "mongolia"],
-    "siberia": ["ural", "china", "mongolia", "irkutsk", "yakursk"],
-    "ural": ["ukraine", "siberia", "china", "afghanistan"],
-    "afghanistan": ["ukraine", "ural", "china","india", "middle_east"],
-    "middle_east": ["ukraine", "southern_europe", "egypt", "east_africa", "india", "afghanistan"],
-    "india": ["middle_east", "afghanistan", "china", "siam"],
-    "siam": ["india","china", "indonesia"],
-    "china": ["siam", "india", "afghanistan", "ural", "siberia", "mongolia"],
-    "mongolia": ["china", "siberia", "irkutsk", "kamchatka", "japan"],
-    "irkutsk": ["kamchatka", "mongolia", "siberia", "yakursk"],
-    "ukraine": ["scandinavia","northern_europe", "southern_europe", "ural", "afghanistan", "middle_east"],
-    "southern_europe": ["western_europe", "northern_europe", "ukraine", "middle_east", "north_africa", "egypt"],
-    "western_europe": ["north_africa", "nortern_europe", "southern_europe", "great_britain"],
-    "northern_europe": ["ukraine", "scandinavia", "southern_europe", "western_europe", "great_britain"],
-    "egypt": ["north_africa", "east_africa", "middle_east", "southern_europe"],
-    "east_africa": ["egypt", "congo", "north_africa", "middle_east", "madagascar", "south_africa"],
-    "congo": ["north_africa", "east_africa", "south_africa"],
-    "south_africa": ["congo", "east_africa", "madagascar"],
-    "brazil": ["venezuela", "peru", "argentina", "north_africa"],
-    "argentina": ["peru", "brazil"],
-    "eastern_united_states": ["central_america", "western_united_states", "ontario", "quebec"],
-    "western_united_states": ["alberta","ontario","eastern_united_states", "central_america"],
-    "quebec": ["greenland", "eastern_united_states", "ontario"],
-    "central_america": ["venezuela", "western_united_states", "eastern_united_states"],
-    "peru": ["venezuela", "brazil", "argentina"],
-    "western_australia": ["eastern_australia", "new_guinea", "indonesia"],
-    "alberta": ["alaska", "northwest_territory", "ontario"]}
-class RiskMonster(EventMonster):
-    def __init__(self):
-        EventMonster.__init__(self)
-        self.setEvents(['gameevents', 'new_admin'])
-        self.state = {'mode': 'not_begun'}
-        self.minplayers = 3
-        self.maxplayers = 6
-        self.users = UserMonster()
-        self.admin = ''
-        self.users.subscribeEvent("userlogout", self.logoutCallback)
-        self.users.subscribeEvent("userlogin", self.joinCallback)
-        loginmonster.subscribeEvent("userlogout", self._globalLogout)
-    def _globalLogout(self,*args,**kw): #if the user actually logs out of the framework, globally
-        if kw['session'].username in self.getPlayers():
-            self.users.userLogout(kw['session'])
-    def logoutCallback(self,*args,**kw):
-        if kw['session'].username == self.admin:
-            self._findNewAdmin()
-    def joinCallback(self,*args,**kw): #when user joins room
-        print kw['session'].username, " joined the room"
-        if len(self.getPlayers()) == 1:
-            self.setAdmin(kw['session'].username)
-            print "...admin permissions granted"
-    
-    #general game-controlling functions:
-    
-    
-            
-    def getPlayers(self): #returns a list of strings
-        return self.users.getUsers()
-    def join(self, session):
-        if not self.state['mode'] == "not_begun":
-            raise Exception("You can't join a game that's already started!")
-        if session.username in self.getPlayers():
-            raise Exception("Already joined")
-        if not len(self.users.getUsers()) < self.maxplayers:
-            raise Exception("Room is full")
-        self.users.userLogin(session)
-    def leave(self, session):
-        self.users.userLogout(session)
-    def setAdmin(self, admin):
-        self.admin = admin
-        self.triggerEvent('new_admin', admin=self.admin)
-    def _findNewAdmin(self):
-        if len(self.getPlayers()) > 0:
-            self.setAdmin(random.choice(self.getPlayers()))
-    def getStateForUser(self,username):
-            state = self.state
-            state['is_admin'] = 'true' if username == self.admin else 'false'
-            return state
-    def startGame(self):
-        pass
-
         
-            
-class RiskAdminResource(JSONPage):
-    def __init__(self, monster):
-        self.admin = monster.admin
-        self.monster = monster
-        monster.subscribeEvent('new_admin',self._newAdminCallback)
-        JSONPage.__init__(self)
-    def _newAdminCallback(self, *args, **kw):
-        self.admin = kw['admin']
-    def render_JSON(self, request):
-        session = request.getSession()
-        if session.username != self.admin:
-            return json_error("You are not admin!")
-        r = j['request']
-        if r == 'start_game':
-            self.monster.startGame()
-class RiskResource(JSONPage):
-    webinterface = "/res/s/risk.html"
-            
-    def __init__(self, monster):
-        JSONPage.__init__(self)
-        self.monster = monster
-        self.putChild("users", UsertrackerResource(self.monster.users))
-        self.privatetree = UserRestricter(self.monster.users)
-        self.privatetree.putChild("admin", RiskAdminResource(self.monster))
-        self.privatetree.putChild("relay", RiskRelayFactory(RiskRelay, self.monster))
-        self.privatetree.putChild("chat", ChatResource(ChatMonster()))
-        self.putChild("priv", self.privatetree)
-    def render_JSON(self, request, j):
-        session = request.getSession()
-        r = j['request']
-        if r == 'init':
-            answer = {'status': 'ok'}
-            answer['logged_in'] = 'true' if session.username in self.monster.getPlayers() else 'false'
-            answer['countrymap'] = RiskData.countrymap
-            return js.dumps(answer)
-        if r == 'getstate':
-            if session.username in self.monster.getPlayers():
-                state = self.monster.getStateForUser(session.username)
-                return js.dumps({'status': 'ok', 'state': state})
-            return json_error("You are not a participant in this room!")
-        elif r == 'join':
-            try:
-                self.monster.join(session)
-            except Exception, reason:
-                print "Join failed: ",reason
-                return json_error(str(reason))
-            return js.dumps({'status':'ok'})
-        elif r == 'leave':
-            self.monster.leave(session)
-            return js.dumps({'status': 'ok'})
-        return json_error('Invalid arguments')
+class GGNoreServer(object):
+    def __init__(self):
+        #Start the mess
+        self.loginmonster = UserMonster()
+        self.root = static.File(os.path.join(path,"www"))
 
-class RiskRelayFactory(RelayFactory):
-    def getTokens(self, request, j):
-        return ['', request.getSession().username]
-class RiskRelay(Relay):
-    def callback(self,event, *args,**kw):
-        pass
-print "Starting reactor"
-reactor.run()
+        #create sqlite tables if not exist
+        sqlcon = sqlite.connect(os.path.join(path,"user.db"))
+        cursor = sqlcon.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, user TEXT NOT NULL, password TEXT NOT NULL, email TEXT NOT NULL)")
+        sqlcon.commit()
+        sqlcon.close()
+
+
+
+        self.restricted = RestrictedTree()
+        self.restricted.putChild("s", static.File(os.path.join(path,"reswww")))
+        self.restricted.putChild("user", UserTree())
+
+        self.sessiontree = SessionTree()
+        self.restricted.putChild("ses", self.sessiontree)
+        self.gamestree = resource.Resource()
+        self.restricted.putChild("games", self.gamestree)
+
+        self.usertracker = UsertrackerResource(self.loginmonster)
+        self.restricted.putChild('usertracker', self.usertracker)
+
+        def _userlogin(_event, *_args, **kw):
+            print kw['session'].username
+            self.sessiontree.putChild('ch', SessionChild(), kw['session'])
+        #make user/session specific things when he/she logs in
+        self.loginmonster.subscribeEvent('userlogin', _userlogin)
+
+        self.root.putChild('', RedirectResource('/loginform.html'))
+        self.root.putChild("res", self.restricted)
+        self.root.putChild("login", LoginJSON())
+        self.root.putChild("create", CreateJSON())
+        self.root.putChild("debug", DebugExplorer())
+        self.root.putChild("logout", Logout())
+
+        self.site = server.Site(self.root)
+        reactor.listenTCP(LISTEN_PORT, self.site) 
+        self.lobby = LobbyMonster()
+        self.lobbyresource = LobbyResource(self.lobby)
+        self.lobbychat = ChatMonster()
+        self.lobbyresource.putChild('chat', ChatResource(self.lobbychat))
+
+        self.restricted.putChild("lobby", self.lobbyresource)
+try:
+    s
+except:
+    s = GGNoreServer()
+from submodules import *
+def start():
+    reactor.run()
