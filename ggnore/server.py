@@ -16,10 +16,11 @@ import os
 LISTEN_PORT = 8080
 path = os.path.dirname(__file__)
 
-recaptcha_public_key = "<>"
-recaptcha_private_key = "<>"
+recaptcha_public_key = "6LdnIAQAAAAAAMcngjkgYMzwqMXVR7riAOQn43rG"
+recaptcha_private_key = "6LdnIAQAAAAAAFNKx59-yCfNfQkFImljgdtpvqGN"
 
 #cool
+
 def sha1(x):
     return hexlify(sha.sha(x).digest())
     
@@ -111,7 +112,6 @@ class LoginJSON(JSONPage):
         self.sqlcon = sqlite.connect('user.db') #os.path.join(path,'user.db'))
         
     def render_JSON(self, request,j):
-        session = request.getSession()
         try:
             str(j['username'])
             str(j['password'])
@@ -122,13 +122,25 @@ class LoginJSON(JSONPage):
         row = cursor.fetchone()
         if row:
             if sha1(j['password']) == row[1]:
+                #if the person is already logged in:
+                session = request.getSession()
+                print session.uid, " before"
+                try:
+                    if session.username in s.loginmonster.getUsers():
+                        s.loginmonster._users[session.username].expire()
+                    #hack:
+                    request.session = None
+                    session = request.getSession()
+                    print session.uid, " after"
+                except:
+                    pass
+                    
                 session.logged_in = True
                 session.username = row[0]
                 session.email = row[2]
                 session.channels = []
                 session.channel_index = {}
-                if session.username in s.loginmonster.getUsers():
-                    s.loginmonster._users[session.username].expire()
+                session.databank = {}
                 session.notifyOnExpire(lambda *args: s.loginmonster.userLogout(session))
                 s.loginmonster.userLogin(session)
                 return js.dumps({'status': 'ok', 'username': session.username})
@@ -310,14 +322,21 @@ class Relay(resource.Resource): #long-poll resource. implements buffering of eve
         for j in tokens:
             for i in events:
                 self.monster.subscribeEvent(i, self._bufferingCallback, token=j)
+    def return_ok(self, data):
+        return self.request.write(js.dumps(data))
+    def return_error(self, error):
+        return self.request.write(json_error(error))
+    def finish(self):
+        return self.request.finish()
+    
     def render_GET(self, request):
         if self.state == 'waiting':
             print "WARNING: state == waiting"
-            self.request.write(js.dumps({'status': 'error', 'reason': 'takeover'}))
-            self.request.finish()
+            self.return_ok({'status': 'error', 'reason': 'takeover'})
+            self.finish()
         self.state = 'inactive'
         self.request = request
-        d= self.request.notifyFinish() # theres probably a race condition somhere here, but I don't consider it life-threatening
+        d = self.request.notifyFinish()
         d.addErrback(self._makeInactive)
         if self.buffer:
             heres_poppy = self.buffer.pop()
@@ -345,9 +364,8 @@ class Relay(resource.Resource): #long-poll resource. implements buffering of eve
 class UserChannel(Relay):
     def callback(self, event, *args, **kw):
         if event == 'userlogin' or event == 'userlogout':
-            print event, " event"
-            self.request.write(js.dumps({'status': 'ok', 'event': event, 'user': kw['user']}))
-            self.request.finish()
+            self.return_ok({'status': 'ok', 'event': event, 'user': kw['user']})
+            self.finish()
 
 class UsertrackerResource(JSONPage):
     def __init__(self, monster):
@@ -432,11 +450,11 @@ class LobbyResource(JSONPage):
 class LobbyChannel(Relay):
     def callback(self, event, *args, **kw):
         if event == 'newroom' or event=='delroom':
-            self.request.write(js.dumps({'status': 'ok', 'event': event, 'name': kw['name'], 'desc': kw['desc']}))
-            self.request.finish()
+            self.return_ok({'status': 'ok', 'event': event, 'name': kw['name'], 'desc': kw['desc']})
+            self.finish()
         else:
-            self.request.write(json_error("Weird relay error"))
-            self.request.finish()
+            self.return_error("Weird relay error")
+            self.finish()
 
 class ChatMonster(EventMonster):
     def __init__(self):
@@ -454,8 +472,8 @@ class ChatMonster(EventMonster):
 
 class ChatChannel(Relay):
     def callback(self,event,*args,**kw):
-        self.request.write(js.dumps({'status': 'ok', 'message': args[0]}))
-        self.request.finish()
+        self.return_ok({'status': 'ok', 'message': args[0]})
+        self.finish()
         
 class ChatResource(JSONPage):
     def __init__(self, monster):
