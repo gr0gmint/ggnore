@@ -11,6 +11,11 @@
 <script type="text/javascript">
 $(function(){
     $("#loginform input:first").focus();
+    $.get("/checklogin", null, function(data, s) {
+        if (data == "true") {
+            $("#logged_in").html("You are already logged in! <a href='/res/s/main.html'>Click here!</a>");
+        }
+    },"text");
     $("#loginform").submit(function(){
         $.post("/login", JSON.stringify({'username': $("#loginform input[name=username]")[0].value, 'password': $("#loginform input[name=password]")[0].value}), function(data, s){
             if (s == "success") {
@@ -43,6 +48,8 @@ Username: <input name="username" type="text" />
 Password: <input name="password" type="password" />
 </p>
 <input type="submit" value="Submit" />
+<p id="logged_in">
+</p>
 </fieldset>
 
 <p>

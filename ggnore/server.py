@@ -16,8 +16,8 @@ import os
 LISTEN_PORT = 8080
 path = os.path.dirname(__file__)
 
-recaptcha_public_key = "<insert public-key>"
-recaptcha_private_key = "<insert private-key>"
+recaptcha_public_key = "<>"
+recaptcha_private_key = "<>"
 
 #cool
 def sha1(x):
@@ -36,7 +36,7 @@ class EventMonster(object):
         if type(events) == list:
             self.events = events
         else:
-            raise Exception('\'events\' needs to be a list')
+            raise Exception('Argument needs to be a list.')
 
         self.options = options
     def subscribeEvent(self, event,callback, token=''): #token is for ie. user-specific events; if we only want a certain user receiving our event
@@ -104,10 +104,11 @@ class JSONPage(resource.Resource):
         j = js.load(request.content)
         answer = self.render_JSON(request, j)
         return answer
+    #def render_JSON(self,request,j):
 
 class LoginJSON(JSONPage):
     def __init__(self):
-        self.sqlcon = sqlite.connect(os.path.join(path,'user.db'))
+        self.sqlcon = sqlite.connect('user.db') #os.path.join(path,'user.db'))
         
     def render_JSON(self, request,j):
         session = request.getSession()
@@ -124,6 +125,10 @@ class LoginJSON(JSONPage):
                 session.logged_in = True
                 session.username = row[0]
                 session.email = row[2]
+                session.channels = []
+                session.channel_index = {}
+                if session.username in s.loginmonster.getUsers():
+                    s.loginmonster._users[session.username].expire()
                 session.notifyOnExpire(lambda *args: s.loginmonster.userLogout(session))
                 s.loginmonster.userLogin(session)
                 return js.dumps({'status': 'ok', 'username': session.username})
@@ -133,26 +138,21 @@ class Logout(resource.Resource):
     def render(self, request):
         session = request.getSession()
         session.expire()
-        return ""
+        return "true"
 class UserMonster(EventMonster):
     def userLogin(self, session):
-        if not self._users.has_key(session.username):
-            self._users[session.username] = []
-        self._users[session.username].append(session)
+        self._users[session.username] = session
         self.triggerEvent('userlogin', user=session.username, session=session)
     def userLogout(self, session):
-        try: #hack -_-
-            self._users[session.username].remove(session)
-        except:
-            self._users[session.username] = []
-        print session.username, " has logged out"
-        if not self._users[session.username]:
-            self.triggerEvent('userlogout', user=session.username[:], session=session)
+        if self._users.has_key(session.username):
+            self._users.pop(session.username)
+        self.triggerEvent('userlogout', user=session.username[:], session=session)
     def getUsers(self):
         return [i for i in self._users.keys() if self._users[i]]
     def __init__(self):
         EventMonster.__init__(self)
         self._users = {}
+        self._expired_sessions = []
         self.setEvents(['userlogin', 'userlogout'])
   
         
@@ -191,7 +191,7 @@ class CreateJSON(JSONPage):
             if not self.emailc.match(j['email']):
                 return js.dumps({'status': 'error', 'reason': "Invalid email"})
             if j['password'] == j['verify']:
-                sqlcon = sqlite.connect('./user.db')
+                sqlcon = sqlite.connect('user.db')
                 cursor = sqlcon.cursor()
                 cursor.execute("INSERT INTO users (user, password, email) VALUES (?, ?, ?)", (j['username'], sha1(j['password']), j['email']))
                 sqlcon.commit()
@@ -492,7 +492,20 @@ class UserRestricter(resource.Resource):
             return json_error("You do not belong here!")
     def render(self,request):
         return json_error("Nothing to see here. Move along.")
-        
+
+class CheckLogin(resource.Resource):
+    def render_GET(self,request):
+        session = request.getSession()
+        logged_in = False
+        try:
+            if session.logged_in == True:
+                logged_in = True
+        except:
+            pass
+        if logged_in:
+            return 'true'
+        else:
+            return 'false'
         
 class GGNoreServer(object):
     def __init__(self):
@@ -501,10 +514,11 @@ class GGNoreServer(object):
         self.root = static.File(os.path.join(path,"www"))
 
         #create sqlite tables if not exist
-        sqlcon = sqlite.connect(os.path.join(path,"user.db"))
+        sqlcon = sqlite.connect("user.db")#os.path.join(path,"user.db"))
         cursor = sqlcon.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, user TEXT NOT NULL, password TEXT NOT NULL, email TEXT NOT NULL)")
         sqlcon.commit()
+	cursor.close()
         sqlcon.close()
 
 
@@ -524,7 +538,9 @@ class GGNoreServer(object):
         def _userlogin(_event, *_args, **kw):
             print kw['session'].username
             self.sessiontree.putChild('ch', SessionChild(), kw['session'])
-        #make user/session specific things when he/she logs in
+                
+            
+        #make user/session specific things when he/she logs in, and also make sure, that the user is only logged in ONCE
         self.loginmonster.subscribeEvent('userlogin', _userlogin)
 
         self.root.putChild('', RedirectResource('/loginform.html'))
@@ -533,6 +549,7 @@ class GGNoreServer(object):
         self.root.putChild("create", CreateJSON())
         self.root.putChild("debug", DebugExplorer())
         self.root.putChild("logout", Logout())
+        self.root.putChild("checklogin", CheckLogin())
 
         self.site = server.Site(self.root)
         reactor.listenTCP(LISTEN_PORT, self.site) 

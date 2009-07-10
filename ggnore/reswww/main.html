@@ -59,7 +59,7 @@ function append_room(name, desc) {
          
 $(function(){
     //get rooms
-    $.post("/res/lobby", JSON.stringify({request: 'getrooms'}), function(data,status){
+    sendJSON("/res/lobby", {request: 'getrooms'}, function(data,status){
         if (status == "success" && data.status == "ok") {
             $("#loading").remove();
             $.each(data.rooms, function(key, desc){
