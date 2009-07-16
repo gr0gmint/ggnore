@@ -511,6 +511,15 @@ class UserRestricter(resource.Resource):
     def render(self,request):
         return json_error("Nothing to see here. Move along.")
 
+class GameResource(JSONPage):
+    def __init__(self, monster):
+        JSONPage.__init__(self)
+        self.monster = monster
+        self.putChild("users", UserTrackerResource(self.monster.users))
+        self.priv = UserRestricter(self.monster.users)
+        self.putChild("p", self.priv)
+        
+
 class CheckLogin(resource.Resource):
     def render_GET(self,request):
         session = request.getSession()
