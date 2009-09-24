@@ -5,28 +5,6 @@ function escapeHTML (str) {    var div = document.createElement('div');
 function longpoll(url,callback) {
     $.get(url, null, function(data, status){if (callback(data,status) != false) { longpoll(url,callback)}}, "json");
 }
-function sendJSON(url, data, callback) {
-    $.post(url, JSON.stringify(data), callback, "json");
-}
-function makeRelay(url, events,callback) {
-    $.post(url, JSON.stringify({request: 'makerelay', events:events}), function(data,status){
-        if (status == "success") {
-            if (data.status == "ok") {
-                callback(data.url);
-                        
-            } else {
-                alert("makerelay error");
-            }
-        } else {
-            alert("Error");
-        }
-    },"json");
-}
-
-function dragWindow(w, h) {
-    div = $("<div style='position: absolute'></div>");
-}
-
 
 
 

@@ -60,5 +60,3 @@ def submit (recaptcha_challenge_field,
         return RecaptchaResponse (is_valid=True)
     else:
         return RecaptchaResponse (is_valid=False, error_code = return_values [1])
-
-
