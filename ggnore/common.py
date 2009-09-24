@@ -6,78 +6,114 @@ def jsonrpc_error(code,message,data=None):
     return js.dumps({'code': code, 'message': message, 'data': data})
 
 class RPC(object):
+    def _register(self): #Important to call, after RPC object is initiated
+        s.RPC.addRPC(self.nodename, self.desc)
     def __init__(self):
-        for i in dir(self):
+        self.nodename = self.__class__.__name__
+        self.desc = self._assemble(self, (self, [], {})) #Assembles self.desc
+    def _assemble(self, node, desc):
+        for i in dir(node):
             if i[0] == '_':
                 continue
-            if callable(i):
-                s.RPC.addRPC(self.__class__.__name__, i)
-class RPCRestricted(object):
-    def __init__(self):
-        for i in dir(self):
-            if i[0] == '_':
-                continue
-            if callable(i):
-                s.resRPC.addRPC(self.__class__.__name__, i)
+            if type(getattr(node,i)) == type: #If it's a class
+                inst = getattr(node,i)()
+                desc[2][i] = self._assemble(inst.__class__.__name__,(inst, [], {})) # The namespace is a tuple in the format (name,object)
+            elif callable(getattr(node,i)): #Its a method
+                desc[1].append(i)
+            return desc
+class RPCRestricted(RPC):
+    def _register(self):
+        s.resRPC.addRPC(self.nodename, self.desc)
 
 class RPCSession(object):
     def __init__(self):
         self.s_to_c = 1
         self.c_t_s = {}
-
+class RPCError(Exception):
+    def __init__(self,code,message):
+        self.args = (message, code)
 class RPCResource(resource.Resource):
-    class RPCError(Exception):
-        def __init__(self,code,message):
-            self.args = (message, code)
+    """
+    This is HTTP resource, where the RPC's are sent and received. Delayed responses are not sent by Comet, because it's incompatible with the JSON-RPC 2.0 standard. Instead, applications advertise client-side functions which can be remotely triggered, and thus the same functionality can be achieved.
+    """
+
     namespaces = {'rpc':
-                     {'getMethodsByNamespace': self.getMethodsByNamespace,
-                      'getNamespaces': self.getNamespaces,
-                      'getAllMethods': self.getAllMethods
-                      'advertiseMethods': self.advertiseMethods}
-                     }
-    def addRPC(self,session,namespace,method):
-        if not namespace in namespaces.keys():
-            namespaces[namespace] = {}
-        namespaces[namespace][method[0]] = method[1]
-    def getMethodsByNamespace(self,session,namespace):
-        return namespaces[namespace]
+                     (self,['getMembersByNamespace',
+                      'getNamespaces',
+                      'getAllMethods',
+                      'advertiseMethods'],
+                      {} #Sub-namespaces
+                     )
+                 }
+    def addRPC(self,namespace,node):
+        namespaces[namespace] = node
+    def getMembersByNamespace(self,session,namespace):
+        return {'methods': namespaces[namespace][1], 'namespaces': namespaces[namespace][2]}
     def getNamespaces(self, session):
         return namespaces.keys()
-    def getAllMethods(self,session):
-        methods=[]
+    def getTree(self,session):
         for i in namespaces.keys():
             for j in i.keys():
                 methods.append(i+"."+j)
-        return methods
+        return self._stripTree(self.namespaces)
     def render_POST(self, request):
         session = request.getSession()
+        rpcsession = session.rpcsession
         try:
             request.content.reset()
         except:
             pass
+        client_response = False #We assume this is a RPC-request
         try:
-            response = False
+            
+            
             try:
                 json = js.load(request.content)
             except ValueError:
                 raise RPCError(-32600, "Parse error")
+                
             try:
                 if json['jsonrpc'] != '2.0':
                     raise RPCError(-32600, "Invalid Request")
-                if json.has_key('method'): #RPC request - / not a response
+                if json.has_key('method'):
+                    method = self._findMethod(json['method'])
                     
                 else:
-                    response = True
+                    client_response = True
             except ValueError as inst:
                 raise RPCError(-32600, "Invalid Request")
+            except TypeError as inst:
+                raise RPCError(-32602, "Invalid Params")
         except RPCError as inst:
             error = jsonrpc_error(inst.args[0], "Invalid Request")
+        except Exception as inst:
+            error = jsonrpc_error(-32603, "Internal error", inst.args[0])
+            
         
         if error and not response:
         answer = 
         elif not response:
-        else:
-            #DO WHAT U GOTTA DO NIGGA
+        else:        for i in dir(self):
+            if i[0] == '_':
+                continue
+            if
+            if callable(i):
+                self._add(self.__class__.__name__,i)
+            
+    def _stripTree(self, tree):
+        strippedtree = {}
+        for i in tree.keys():
+            strippedtree[i] = (tree[i][1], self._stripTree(tree[i][2])
+        return strippedtree
+    def _findMethod(self, method, tree=None):
+        try:
+            if type(method) == str or not tree:
+                self._findMethod(self, method.split("."), self.namespaces)
+            if len(method) = 2:
+                return getattr(tree[method[0]][0], method[1])
+            return self._findTree(method[1:], tree[method[0]][2])
+        except:
+            raise RCPError(-32601, "Method not found")
 
 class RestrictedTree(resource.Resource):
     def __init__(self):

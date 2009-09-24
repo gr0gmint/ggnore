@@ -2,6 +2,10 @@ from twisted.web import resource, static, script
 from twisted.internet import reactor
 from ggnore.common import EventMonster,RPC,RPCRestricted
 
+
+def skeletonSession(session):
+    
+
 class User():
     def __init__(self, username, monster, session=None, usertree=None):
         self.username = username
@@ -82,9 +86,9 @@ class users(RPCRestricted):
             str(j['recaptcha_challenge_field'])
         except:
             return json_error('Invalid arguments')
-        reactor.callInThread(self.furtherValidation, request,j)
+        reactor.callInThread(self._create_furtherValidation, request,j)
         return server.NOT_DONE_YET
-    def _create_furtherValidation(self,session):     #we run this in thread
+    def _create_furtherValidation(self,request):     #we run this in thread
         def returnWrap():
             print "contacting recaptcha API."
             captcha_answer = captcha.submit(j['recaptcha_challenge_field'], j['recaptcha_response_field'], recaptcha_private_key, request.getClientIP())
