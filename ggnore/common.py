@@ -63,22 +63,36 @@ class RPCResource(resource.Resource):
             request.content.reset()
         except:
             pass
+        notification = False #If the RPC is a notification, no answering is needed
         client_response = False #We assume this is a RPC-request
+        client_error = False
+        error = False
         try:
             
             
             try:
                 json = js.load(request.content)
-            except ValueError:
-                raise RPCError(-32600, "Parse error")
+            except ValueError: #Instant return, due to no id being read
+                return js.dumps({'jsonrpc': '2.0', 'error':jsonrpc_error(-32600, "Parse error")})
+                #raise RPCError(-32600, "Parse error")
                 
             try:
                 if json['jsonrpc'] != '2.0':
                     raise RPCError(-32600, "Invalid Request")
                 if json.has_key('method'):
                     method = self._findMethod(json['method'])
+                    if type(json['params']) == list:
+                        result = method(*json['params'])
+                    else:
+                        result = method(**json['params'])
                     
+                    if not json.has_key('id') or not json['id']:
+                        notification = True
+                    else:
+                        req_id = json['id']
                 else:
+                    if json.has_key('error'):
+                        response_error = json['error']
                     client_response = True
             except ValueError as inst:
                 raise RPCError(-32600, "Invalid Request")
@@ -89,17 +103,19 @@ class RPCResource(resource.Resource):
         except Exception as inst:
             error = jsonrpc_error(-32603, "Internal error", inst.args[0])
             
+        if notification:
+            return ""
         
-        if error and not response:
-        answer = 
-        elif not response:
-        else:        for i in dir(self):
-            if i[0] == '_':
-                continue
-            if
-            if callable(i):
-                self._add(self.__class__.__name__,i)
-            
+        
+        
+        if error:
+            answer = {'jsonrpc': '2.0', 'error':error, 'id': None} 
+        elif not client_response:
+            answer = {'jsonrpc': '2.0', 'result': response, 'id': req_id}
+        else:
+            if response_error:
+                rpcsession
+            rpcsession.callbacks[
     def _stripTree(self, tree):
         strippedtree = {}
         for i in tree.keys():
