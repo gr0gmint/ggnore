@@ -60,7 +60,7 @@ class GGNoreServer(object):
         
         self.tree = {'r': (RestrictedTree(),{
                         'rpc': self.resRPC,
-                        's': static.File(os.path.join(path,"reswww")
+                        's': static.File(os.path.join(path,"reswww")),
                         'u': UserTree()
                         }),
                      'rpc': self.RPC,

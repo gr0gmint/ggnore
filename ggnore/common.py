@@ -32,6 +32,7 @@ class RPCSession(object):
 class RPCError(Exception):
     def __init__(self,code,message):
         self.args = (message, code)
+        
 class RPCResource(resource.Resource):
     """
     This is HTTP resource, where the RPC's are sent and received. Delayed responses are not sent by Comet, because it's incompatible with the JSON-RPC 2.0 standard. Instead, applications advertise client-side functions which can be remotely triggered, and thus the same functionality can be achieved.
@@ -56,6 +57,7 @@ class RPCResource(resource.Resource):
             for j in i.keys():
                 methods.append(i+"."+j)
         return self._stripTree(self.namespaces)
+        
     def render_POST(self, request):
         session = request.getSession()
         rpcsession = session.rpcsession
